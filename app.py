@@ -563,7 +563,6 @@ def main():
                           trend, cfg["show_ext"], tmr)
         st.plotly_chart(fig, use_container_width=True)
 
-        # 用 is not None，避免 lb=0.0 被誤判為 False
         if lb is not None and ab is not None:
             fib_pos_txt = (
                 f"現價 **{current_price:,.0f}** 位於費氏 "
@@ -618,9 +617,9 @@ def main():
         all_fib = {**ret}
         if cfg["show_ext"]:
             all_fib.update(ext)
-        sorted_f  = sorted(all_fib.items(), key=lambda x: x[1])
-        prices_f  = [p for _, p in sorted_f]
-        labels_f  = [FIB_LABELS.get(lv, f"{lv:.3f}") for lv, _ in sorted_f]
+        sorted_f = sorted(all_fib.items(), key=lambda x: x[1])
+        prices_f = [p for _, p in sorted_f]
+        labels_f = [FIB_LABELS.get(lv, f"{lv:.3f}") for lv, _ in sorted_f]
         fig2 = go.Figure(go.Bar(
             x=labels_f,
             y=[abs(p - current_price) for p in prices_f],
@@ -648,8 +647,21 @@ def main():
         if hasattr(display_hist.index, "strftime"):
             display_hist.index = display_hist.index.strftime("%Y-%m-%d %H:%M")
         display_hist.columns = ["收盤", "最高", "最低", "成交量", "費氏回檔%", "費氏位階"]
-        st.dataframe(display_hist.style.background_gradient(subset=["費氏回檔%"], cmap="RdYlGn_r"),
-                     use_container_width=True)
+
+        def _color_fib(val):
+            try:
+                v = float(val)
+                if v <= 38.2:   bg = "#26a69a40"
+                elif v <= 61.8: bg = "#ffd70040"
+                else:           bg = "#ef535040"
+                return f"background-color: {bg}; color: white"
+            except Exception:
+                return ""
+
+        st.dataframe(
+            display_hist.style.map(_color_fib, subset=["費氏回檔%"]),
+            use_container_width=True,
+        )
 
     # ════════════════════════════════════════════════════════════════
     # TAB 3
@@ -677,7 +689,7 @@ def main():
         st.markdown("### 📊 多時間框架費氏位階概覽")
         st.caption("各時框自動抓取近期波段，計算現價費氏回檔位置（需時稍長）")
 
-        mtf_cfg = {
+        mtf_intervals = {
             "日線 (3個月)": ("1d",  "3mo"),
             "日線 (1年)":   ("1d",  "1y"),
             "週線 (2年)":   ("1wk", "2y"),
@@ -686,18 +698,18 @@ def main():
 
         mtf_results, scores, labels_mtf = [], [], []
         prog = st.progress(0)
-        for idx, (lbl, (iv, pr)) in enumerate(mtf_cfg.items()):
-            prog.progress((idx + 1) / len(mtf_cfg), text=f"載入 {lbl}…")
+        for idx, (lbl, (iv, pr)) in enumerate(mtf_intervals.items()):
+            prog.progress((idx + 1) / len(mtf_intervals), text=f"載入 {lbl}…")
             df_m = fetch_ohlcv(cfg["ticker"], iv, pr)
             if df_m.empty:
                 continue
             sh_m, shi_m, sl_m, sli_m = dominant_swing(df_m, cfg["swing_window"])
-            tr_m   = trend_from_swings(shi_m, sli_m)
-            ret_m  = fib_retracement(sh_m, sl_m)
-            ext_m  = fib_extension(sh_m, sl_m, tr_m)
-            cp_m   = float(df_m["Close"].iloc[-1])
-            sig_m  = bull_bear_signal(cp_m, ret_m, tr_m)
-            tmr_m  = tomorrow_targets(cp_m, ret_m, ext_m, tr_m)
+            tr_m  = trend_from_swings(shi_m, sli_m)
+            ret_m = fib_retracement(sh_m, sl_m)
+            ext_m = fib_extension(sh_m, sl_m, tr_m)
+            cp_m  = float(df_m["Close"].iloc[-1])
+            sig_m = bull_bear_signal(cp_m, ret_m, tr_m)
+            tmr_m = tomorrow_targets(cp_m, ret_m, ext_m, tr_m)
             ret_pct = (sh_m - cp_m) / (sh_m - sl_m) * 100 if sh_m != sl_m else 0
             mtf_results.append({
                 "時間框架": lbl, "現價": f"{cp_m:,.0f}",

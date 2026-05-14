@@ -638,28 +638,41 @@ def main():
         st.markdown("#### 📅 近期收盤與費氏位階追蹤")
         hist = df.tail(20).copy()
         diff_total = swing_hi - swing_lo if swing_hi != swing_lo else 1.0
-        hist["費氏回檔%"] = ((swing_hi - hist["Close"]) / diff_total * 100).round(2)
-        hist["費氏位階"] = hist["費氏回檔%"].apply(lambda x:
-            "0.000" if x <= 0 else "0.236" if x <= 23.6 else "0.382" if x <= 38.2 else
-            "0.500" if x <= 50.0 else "0.618" if x <= 61.8 else "0.786" if x <= 78.6 else "1.000"
+
+        # 從低點往上算：0%=低點, 100%=高點, >100%=延伸區
+        hist["波段位置%"] = ((hist["Close"] - swing_lo) / diff_total * 100).round(2)
+        hist["費氏位階"] = hist["波段位置%"].apply(lambda x:
+            "1.000 終點"  if x <= 0    else
+            "0.786"       if x <= 21.4 else
+            "0.618 ★"    if x <= 38.2 else
+            "0.500 中線"  if x <= 50.0 else
+            "0.382 ★"    if x <= 61.8 else
+            "0.236"       if x <= 76.4 else
+            "0.000 起點"  if x <= 100  else
+            "1.272 延伸"  if x <= 127.2 else
+            "1.414 延伸"  if x <= 141.4 else
+            "1.618 延伸★" if x <= 161.8 else
+            "2.000 延伸"  if x <= 200  else
+            "2.618+ 延伸"
         )
-        display_hist = hist[["Close", "High", "Low", "Volume", "費氏回檔%", "費氏位階"]].copy()
+        display_hist = hist[["Close", "High", "Low", "Volume", "波段位置%", "費氏位階"]].copy()
         if hasattr(display_hist.index, "strftime"):
             display_hist.index = display_hist.index.strftime("%Y-%m-%d %H:%M")
-        display_hist.columns = ["收盤", "最高", "最低", "成交量", "費氏回檔%", "費氏位階"]
+        display_hist.columns = ["收盤", "最高", "最低", "成交量", "波段位置%", "費氏位階"]
 
         def _color_fib(val):
             try:
                 v = float(val)
-                if v <= 38.2:   bg = "#26a69a40"
-                elif v <= 61.8: bg = "#ffd70040"
-                else:           bg = "#ef535040"
+                if v > 100:    bg = "#2196F340"
+                elif v > 61.8: bg = "#26a69a40"
+                elif v > 38.2: bg = "#ffd70040"
+                else:          bg = "#ef535040"
                 return f"background-color: {bg}; color: white"
             except Exception:
                 return ""
 
         st.dataframe(
-            display_hist.style.map(_color_fib, subset=["費氏回檔%"]),
+            display_hist.style.map(_color_fib, subset=["波段位置%"]),
             use_container_width=True,
         )
 
